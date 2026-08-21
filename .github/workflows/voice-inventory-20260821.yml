@@ -1,0 +1,32 @@
+name: Inventory macOS speech voices
+
+on:
+  push:
+    branches:
+      - codex/voice-inventory-20260821
+    paths:
+      - .github/workflows/voice-inventory-20260821.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: macos-latest
+    steps:
+      - name: List installed speech voices
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SYSTEM_BEGIN"
+          sw_vers
+          uname -m
+          echo "SYSTEM_END"
+          say -v '?' > "$RUNNER_TEMP/voices.txt"
+          echo "VOICE_COUNT=$(wc -l < "$RUNNER_TEMP/voices.txt" | tr -d ' ')"
+          echo "ALL_VOICES_BEGIN"
+          cat "$RUNNER_TEMP/voices.txt"
+          echo "ALL_VOICES_END"
+          echo "EN_GB_VOICES_BEGIN"
+          grep ' en_GB ' "$RUNNER_TEMP/voices.txt" || true
+          echo "EN_GB_VOICES_END"
