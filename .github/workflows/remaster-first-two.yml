@@ -1,0 +1,182 @@
+name: Remaster first two Living Patterns episodes
+
+on:
+  push:
+    paths:
+      - .github/workflows/remaster-first-two.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remaster:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng
+          python -m pip install --upgrade pip
+          python -m pip install "kokoro>=0.9.4" soundfile numpy
+          curl -L --fail --retry 3 "https://commons.wikimedia.org/wiki/Special:Redirect/file/Birds_singing_in_garden.ogg" -o "$RUNNER_TEMP/garden.ogg"
+
+      - name: Generate and publish remasters
+        env:
+          KOKORO_VOICE: bm_george
+          KOKORO_SPEED: "0.88"
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/remaster.py" <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          import numpy as np
+          import soundfile as sf
+          from kokoro import KPipeline
+
+          RATE = 24000
+          VOICE = os.environ["KOKORO_VOICE"]
+          SPEED = float(os.environ["KOKORO_SPEED"])
+          TMP = Path(os.environ["RUNNER_TEMP"])
+          OUT = TMP / "living-patterns-remaster"
+          OUT.mkdir(exist_ok=True)
+
+          episodes = [
+            dict(
+              number=1, date="18 August 2026",
+              filename="2026-08-18-begin-with-the-place-that-already-works.mp3",
+              guid="living-patterns-2026-08-18-01",
+              title="Begin with the place that already works",
+              paragraphs=[
+                "We often think improvement begins with a plan: identify what is wrong, decide what should replace it, then impose a new order. But living places rarely respond well to being treated as blank material. A room, a garden, even a corner of a desk already has a structure. Some parts support us; others interrupt the flow. The useful question is not simply, What should this become? It is, Where is life already gathering?",
+                "Perhaps one chair receives the morning light. Perhaps people pause naturally at a certain threshold. Perhaps a worn path across the grass records a better route than the paving does. These are small centers of coherence. They tell us how a place and its people have begun to fit one another.",
+                "Repair can start by strengthening such a center. Move the lamp toward the chair that is actually used. Clear the crowded ledge where keys naturally land. Put a small table where conversation already tends to form. The change may be modest, but if it supports several relationships at once—light, movement, comfort, attention—it can improve the whole room.",
+                "This kind of making asks for participation. We observe, adjust, live with the result, and look again. The measure is not novelty or perfection. It is whether the change allows more parts of life to belong together.",
+              ],
+              practice="Today, notice one place that already feels quietly right. Before adding anything new, ask what gives that place its strength, then make one small change that protects or extends it.",
+            ),
+            dict(
+              number=2, date="19 August 2026",
+              filename="2026-08-19-make-room-for-the-middle.mp3",
+              guid="living-patterns-2026-08-19-02",
+              title="Make room for the middle",
+              paragraphs=[
+                "Some places feel thin not because they lack objects, but because the parts do not speak across scale. A broad wall meets a tiny picture. A large room contains chairs scattered as isolated points. The eye leaps from whole to detail with nothing in between to hold the relationship.",
+                "Living structure often depends on middle-sized centers. A window becomes more welcoming when a seat, curtain, sill, and nearby light make a small territory around it. A long table gains coherence from a runner, a bowl, and places that gather into groups. None of these additions matters alone. Their value comes from forming steps: room, corner, surface, object, hand.",
+                "The middle scale is easily missed because it rarely announces itself. It is not the building and not the ornament. Yet it is where use becomes tangible. It turns an abstract expanse into a series of places the body can understand. When several scales overlap, each part strengthens the others without needing perfect symmetry.",
+                "This applies beyond rooms. A difficult project can feel equally empty when there is only a distant goal and today's small task. A weekly rhythm, a working draft, or a visible sequence of stages can create the missing middle. Wholeness grows when large intention and immediate action are joined by forms we can inhabit.",
+              ],
+              practice="Choose one place or project that feels scattered. Add one intermediate structure—a tray, a grouping, a short sequence, or a weekly checkpoint—and notice whether the larger whole becomes easier to enter.",
+            ),
+          ]
+
+          pipe = KPipeline(lang_code="b")
+
+          def synth(text):
+            parts=[]
+            for result in pipe(text, voice=VOICE, speed=SPEED, split_pattern=r"\n+"):
+              audio=getattr(result,"audio",None)
+              if audio is None and isinstance(result,(tuple,list)):
+                audio=result[-1]
+              if audio is None: continue
+              if hasattr(audio,"detach"): audio=audio.detach().cpu().numpy()
+              parts.append(np.asarray(audio,dtype=np.float32).reshape(-1))
+            if not parts: raise RuntimeError("No audio generated")
+            return np.concatenate(parts)
+
+          def silence(s): return np.zeros(round(s*RATE),dtype=np.float32)
+
+          meta=[]
+          for ep in episodes:
+            parts=[silence(3.0), synth("Living Patterns."), silence(1.25),
+                   synth(ep["title"]+"."), silence(1.8),
+                   synth(ep["paragraphs"][0]), silence(1.35),
+                   synth(ep["paragraphs"][1]), silence(4.5),
+                   synth(ep["paragraphs"][2]), silence(1.35),
+                   synth(ep["paragraphs"][3]), silence(4.5),
+                   synth("A small practice."), silence(1.6),
+                   synth(ep["practice"]), silence(4.0)]
+            voice=np.concatenate(parts)
+            peak=float(np.max(np.abs(voice))) or 1.0
+            voice=np.clip(voice*min(0.92/peak,1.0),-0.98,0.98)
+            wav=OUT/f"episode-{ep['number']}-voice.wav"
+            sf.write(wav,voice,RATE,subtype="PCM_16")
+            duration=len(voice)/RATE
+            fade=max(0.0,duration-3.0)
+            filt=(
+              f"[0:a]atrim=0:{duration:.3f},asetpts=PTS-STARTPTS,"
+              f"highpass=f=100,lowpass=f=11000,volume=0.055,"
+              f"afade=t=in:st=0:d=2,afade=t=out:st={fade:.3f}:d=3[amb];"
+              "[1:a]highpass=f=70,loudnorm=I=-18:TP=-2:LRA=7[voice];"
+              "[amb][voice]sidechaincompress=threshold=0.018:ratio=6:attack=35:release=850[duck];"
+              "[voice][duck]amix=inputs=2:duration=first:dropout_transition=0,"
+              "loudnorm=I=-16:TP=-1.5:LRA=8[out]"
+            )
+            subprocess.run([
+              "ffmpeg","-y","-stream_loop","-1","-i",str(TMP/"garden.ogg"),
+              "-i",str(wav),"-filter_complex",filt,"-map","[out]",
+              "-ar","44100","-ac","2","-codec:a","libmp3lame","-b:a","96k",ep["filename"]
+            ],check=True)
+            probe=json.loads(subprocess.check_output([
+              "ffprobe","-v","error","-show_entries","format=duration,size","-of","json",ep["filename"]
+            ],text=True))["format"]
+            secs=float(probe["duration"]); r=round(secs)
+            ep.update(duration=f"{r//60}:{r%60:02d}",seconds=secs,bytes=int(probe["size"]),voice=VOICE,speed=SPEED)
+            meta.append(ep)
+
+          credit_plain="Garden ambience: Birds singing in garden by ezwa, public domain, via Wikimedia Commons."
+          credit_html='<p class="audio-credit">Garden ambience: <a href="https://commons.wikimedia.org/wiki/File:Birds_singing_in_garden.ogg">Birds singing in garden</a> by ezwa, public domain.</p>'
+
+          feedp=Path("feed.xml"); feed=feedp.read_text()
+          for ep in meta:
+            m=re.search(r"<item>.*?<guid isPermaLink=\"false\">"+re.escape(ep["guid"])+r"</guid>.*?</item>",feed,re.S)
+            if not m: raise RuntimeError("Missing feed item "+ep["guid"])
+            item=m.group(0)
+            item=re.sub(r'(<enclosure\s+url="[^"]*'+re.escape(ep["filename"])+r'"\s+length=")\d+(")',
+                        lambda x:x.group(1)+str(ep["bytes"])+x.group(2),item)
+            item=re.sub(r"<itunes:duration>[^<]+</itunes:duration>",
+                        "<itunes:duration>"+ep["duration"]+"</itunes:duration>",item)
+            if credit_plain not in item:
+              item=item.replace("]]></content:encoded>","\n\n"+credit_plain+"]]></content:encoded>")
+            feed=feed[:m.start()]+item+feed[m.end():]
+          feedp.write_text(feed)
+
+          htmlp=Path("index.html"); html=htmlp.read_text()
+          for ep in meta:
+            marker=f'aria-labelledby="episode-{ep["number"]}-heading"'
+            pat=re.compile(r'<article class="episode-card" '+re.escape(marker)+r'>.*?</article>',re.S)
+            m=pat.search(html)
+            if not m: raise RuntimeError("Missing article "+str(ep["number"]))
+            article=m.group(0)
+            article=re.sub(r'<p class="date">([^<]*?) · [^<]+</p>',
+                           lambda x:'<p class="date">'+x.group(1)+' · '+ep["duration"]+'</p>',article,count=1)
+            if credit_html not in article:
+              article=article.replace("</div></details>",credit_html+"</div></details>")
+            html=html[:m.start()]+article+html[m.end():]
+          htmlp.write_text(html)
+
+          import xml.etree.ElementTree as ET
+          tree=ET.parse(feedp); channel=tree.getroot().find("channel")
+          for ep in meta:
+            items=[i for i in channel.findall("item") if i.findtext("guid")==ep["guid"]]
+            assert len(items)==1
+            enc=items[0].find("enclosure")
+            assert int(enc.attrib["length"])==Path(ep["filename"]).stat().st_size
+            assert items[0].findtext("{http://www.itunes.com/dtds/podcast-1.0.dtd}duration")==ep["duration"]
+            subprocess.run(["ffmpeg","-v","error","-i",ep["filename"],"-f","null","-"],check=True)
+          print(json.dumps([{k:e[k] for k in ("number","filename","duration","bytes","voice","speed")} for e in meta],indent=2))
+          PY
+
+          python "$RUNNER_TEMP/remaster.py"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -- ".github/workflows/remaster-first-two.yml"
+          git add -- feed.xml index.html             2026-08-18-begin-with-the-place-that-already-works.mp3             2026-08-19-make-room-for-the-middle.mp3
+          git commit -m "Remaster first two Living Patterns episodes"
+          git push
