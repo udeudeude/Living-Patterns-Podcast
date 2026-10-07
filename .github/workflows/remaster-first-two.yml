@@ -112,9 +112,9 @@ jobs:
               f"[0:a]atrim=0:{duration:.3f},asetpts=PTS-STARTPTS,"
               f"highpass=f=100,lowpass=f=11000,volume=0.055,"
               f"afade=t=in:st=0:d=2,afade=t=out:st={fade:.3f}:d=3[amb];"
-              "[1:a]highpass=f=70,loudnorm=I=-18:TP=-2:LRA=7[voice];"
-              "[amb][voice]sidechaincompress=threshold=0.018:ratio=6:attack=35:release=850[duck];"
-              "[voice][duck]amix=inputs=2:duration=first:dropout_transition=0,"
+              "[1:a]highpass=f=70,loudnorm=I=-18:TP=-2:LRA=7,asplit=2[voice_sc][voice_mix];"
+              "[amb][voice_sc]sidechaincompress=threshold=0.018:ratio=6:attack=35:release=850[duck];"
+              "[voice_mix][duck]amix=inputs=2:duration=first:dropout_transition=0,"
               "loudnorm=I=-16:TP=-1.5:LRA=8[out]"
             )
             subprocess.run([
