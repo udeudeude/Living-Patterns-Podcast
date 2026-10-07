@@ -1,0 +1,29 @@
+{
+  "title": "Living Patterns",
+  "link": "https://udeudeude.github.io/Living-Patterns-Podcast/",
+  "feed_url": "https://udeudeude.github.io/Living-Patterns-Podcast/feed.xml",
+  "preview_feed_url": "https://udeudeude.github.io/Living-Patterns-Podcast/preview-feed.xml",
+  "description": "Original daily two-minute reflections on living structure, wholeness, centers, patterns, adaptation, repair, participation, and the fit between human life and place.",
+  "language": "en-gb",
+  "copyright": "© 2026 Daily Living Patterns",
+  "author": "Daily Living Patterns",
+  "summary": "A daily two-minute reflection on what makes life and place feel whole.",
+  "category": [
+    "Arts",
+    "Design"
+  ],
+  "cover": "living-patterns-cover.jpg",
+  "og_image": "og.png",
+  "eyebrow": "A daily two-minute reflection",
+  "hero_title": "Notice what makes a place feel alive.",
+  "hero_intro": "Brief, original reflections on living structure, repair, participation, and the quiet fit between human life and place.",
+  "lineage": [
+    "Living Patterns is an independent project of original reflections inspired by Christopher Alexander’s work on living structure, patterns, centers, wholeness, repair, participation, and the relation between human life and place.",
+    "It is not affiliated with Christopher Alexander’s estate, the Center for Environmental Structure, or the publishers of his books. The episodes interpret, test, extend, and sometimes question ideas rather than attempting to summarize any one text."
+  ],
+  "further_reading": [
+    "The Timeless Way of Building",
+    "A Pattern Language",
+    "The Nature of Order"
+  ]
+}

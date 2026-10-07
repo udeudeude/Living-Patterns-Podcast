@@ -1,0 +1,26 @@
+name: Validate Living Patterns
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - "data/**"
+      - "scripts/**"
+      - "feed.xml"
+      - "preview-feed.xml"
+      - "index.html"
+      - "PRODUCTION.md"
+      - "EDITORIAL_PLAN.md"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate canonical data and generated files
+        run: python3 scripts/build.py --check
