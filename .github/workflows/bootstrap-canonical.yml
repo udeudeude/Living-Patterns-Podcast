@@ -1,0 +1,31 @@
+name: Build canonical Living Patterns outputs
+
+on:
+  push:
+    paths:
+      - ".github/workflows/bootstrap-canonical.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build site and feeds from canonical data
+        run: |
+          set -euo pipefail
+          python3 scripts/build.py
+          python3 scripts/build.py --check
+      - name: Commit generated outputs
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -- ".github/workflows/bootstrap-canonical.yml"
+          git add -- feed.xml preview-feed.xml index.html
+          git commit -m "Build Living Patterns from canonical data"
+          git push
