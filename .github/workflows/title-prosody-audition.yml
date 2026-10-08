@@ -1,0 +1,41 @@
+name: Generate opening-title voice audition
+
+on:
+  push:
+    paths:
+      - .github/workflows/title-prosody-audition.yml
+
+permissions:
+  contents: write
+
+jobs:
+  audition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install speech and audio dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y espeak-ng ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install 'kokoro>=0.9.4' soundfile numpy
+      - name: Generate and validate unlisted listening samples
+        run: |
+          set -euo pipefail
+          python scripts/generate_title_auditions.py
+          test "$(find auditions -name '*.mp3' | wc -l)" -eq 5
+          for file in auditions/*.mp3; do
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file"
+          done
+      - name: Commit samples and retire one-shot workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/title-prosody-audition.yml
+          git add auditions/
+          git commit -m "Publish unlisted opening-title audition samples"
+          git push
