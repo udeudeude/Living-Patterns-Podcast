@@ -1,0 +1,39 @@
+name: Create episode opening without show-name announcement
+
+on:
+  push:
+    paths:
+      - ".github/workflows/sample-without-show-name.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install audio editing and alignment dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          python3 -m pip install faster-whisper numpy soundfile
+      - name: Generate and verify short comparison
+        run: |
+          set -euo pipefail
+          python3 scripts/make_opening_without_show_name.py
+          test -s auditions/without-show-name/episode-1-opening.mp3
+          test -s auditions/without-show-name/index.html
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 auditions/without-show-name/episode-1-opening.mp3
+      - name: Commit sample and retire one-time workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/sample-without-show-name.yml
+          git add auditions/without-show-name/
+          git commit -m "Add private-link example of opening without spoken show name"
+          git push
