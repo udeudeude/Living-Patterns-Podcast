@@ -1,4 +1,5 @@
 name: Extract naturally spoken title
+# Re-run with direct-waveform alignment to avoid PyAV compatibility error
 
 on:
   push:
