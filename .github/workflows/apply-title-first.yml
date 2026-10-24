@@ -1,0 +1,39 @@
+name: Apply approved title-first intros
+
+on:
+  push:
+    paths:
+      - .github/workflows/apply-title-first.yml
+
+permissions:
+  contents: write
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install audio editing tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          python3 -m pip install numpy
+      - name: Create six title-first masters and regenerate feeds
+        run: |
+          set -euo pipefail
+          python3 scripts/apply_title_first_openings.py
+          python3 scripts/build.py
+          python3 scripts/build.py --check
+          test "$(find . -maxdepth 1 -name '*-title-first.mp3' | wc -l)" -eq 6
+      - name: Commit verified audio and site changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/scan-intros.yml .github/workflows/apply-title-first.yml
+          git add -- '*-title-first.mp3' data/episodes.json feed.xml preview-feed.xml index.html
+          git commit -m "Use episode titles as spoken openings for all six episodes"
+          git push
