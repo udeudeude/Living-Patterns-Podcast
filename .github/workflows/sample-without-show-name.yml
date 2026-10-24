@@ -1,4 +1,5 @@
 name: Create episode opening without show-name announcement
+# Rerun using acoustic speech-envelope detection
 
 on:
   push:
@@ -20,7 +21,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg
-          python3 -m pip install faster-whisper numpy soundfile
+          python3 -m pip install numpy soundfile
       - name: Generate and verify short comparison
         run: |
           set -euo pipefail
