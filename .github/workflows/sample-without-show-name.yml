@@ -1,5 +1,5 @@
 name: Create episode opening without show-name announcement
-# Rerun using acoustic speech-envelope detection
+# Rerun after identifying the natural within-title pause
 
 on:
   push:
