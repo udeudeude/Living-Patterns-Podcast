@@ -82,9 +82,15 @@ with tempfile.TemporaryDirectory() as tmp:
         a for a, b in groups
         if 5.0 <= a <= 10.0 and b - a >= 0.35
     ]
-    if len(candidates) != 1:
+    if not candidates:
         raise RuntimeError(f"Could not isolate episode-title onset: {groups}")
-    onset = candidates[0]
+    # The title itself can have several speech bands separated by a
+    # brief pause. The FIRST band after the long programme-name pause
+    # is the beginning of the episode title, not an ambiguity.
+    onset = min(candidates)
+    preceding = [b for a, b in groups if 2.5 < a < 5.0]
+    if len(preceding) != 1 or onset - preceding[0] < 0.85:
+        raise RuntimeError(f"Missing clear gap after spoken programme name: {groups}")
     # Retain a short lead-in of ambience ahead of the first syllable.
     cut = onset - 0.17
 
