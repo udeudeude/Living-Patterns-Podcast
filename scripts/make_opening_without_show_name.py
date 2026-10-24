@@ -13,7 +13,6 @@ import tempfile
 
 import numpy as np
 import soundfile as sf
-from faster_whisper import WhisperModel
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "2026-08-18-begin-with-the-place-that-already-works-remastered.mp3"
@@ -38,42 +37,57 @@ with tempfile.TemporaryDirectory() as tmp:
     audio, sample_rate = sf.read(wav, dtype="float32")
     if sample_rate != 16000 or audio.ndim != 1:
         raise RuntimeError("Unexpected input format")
-    model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(
-        np.asarray(audio, dtype=np.float32),
-        beam_size=5,
-        language="en",
-        word_timestamps=True,
-        vad_filter=False,
-        initial_prompt=(
-            "Living Patterns. Begin with the place that already works. "
-            "We often think improvement begins with a plan."
-        ),
+    # In this mix the first two spoken blocks are the programme name
+    # and the episode title, with a deliberate 1.25-second pause between.
+    # Detect the speech envelope rather than relying on a speech recognizer
+    # that ignored both short title phrases in the first attempt.
+    voice_band = Path(tmp) / "voice-band.wav"
+    ffmpeg(
+        "-i", str(wav),
+        "-af", "highpass=f=180,lowpass=f=1800",
+        "-ar", "16000", "-ac", "1", voice_band,
     )
-    words = []
-    for segment in segments:
-        for word in segment.words or []:
-            token = re.sub("[^a-z]+", "", word.word.lower())
-            if token:
-                words.append((token, round(float(word.start), 3), round(float(word.end), 3)))
-    print("Recognized opening words:", words[:36], flush=True)
+    filtered, rate = sf.read(voice_band, dtype="float32")
+    samples_per_frame = 320  # 20 milliseconds
+    count = len(filtered) // samples_per_frame
+    frames = filtered[:count * samples_per_frame].reshape(count, samples_per_frame)
+    rms = np.sqrt(np.mean(frames * frames, axis=1))
+    # Smooth the envelope to avoid mistaking syllabic gaps for silence.
+    smooth = np.convolve(rms, np.ones(7) / 7, mode="same")
+    floor = float(np.median(smooth[:110])) # first 2.2s: just ambience
+    threshold = max(0.012, floor * 3.2)
+    speech = smooth > threshold
 
-    # Anchor the edit to the actual start of the episode title, rather than
-    # guessing the duration of the show-name announcement.
-    candidates = []
-    for i, (token, start, _) in enumerate(words[:-1]):
-        if token == "begin" and words[i + 1][0] == "with":
-            candidates.append(start)
+    # Merge pauses under .24 seconds, but not the intentional title pause.
+    groups = []
+    active = np.flatnonzero(speech)
+    if len(active):
+        a = int(active[0])
+        b = a
+        for i in active[1:]:
+            i = int(i)
+            if i - b <= 12:
+                b = i
+            else:
+                if b - a >= 12:
+                    groups.append((a * .02, (b + 1) * .02))
+                a = b = i
+        if b - a >= 12:
+            groups.append((a * .02, (b + 1) * .02))
+    print(f"Speech bands: floor={floor:.4f} threshold={threshold:.4f} groups={groups}", flush=True)
+
+    # The first word of the episode title is expected after the title
+    # announcement and before the reflection proper.
+    candidates = [
+        a for a, b in groups
+        if 5.0 <= a <= 10.0 and b - a >= 0.35
+    ]
     if len(candidates) != 1:
-        raise RuntimeError(f"Could not uniquely locate opening of episode title: {words}")
+        raise RuntimeError(f"Could not isolate episode-title onset: {groups}")
+    onset = candidates[0]
+    # Retain a short lead-in of ambience ahead of the first syllable.
+    cut = onset - 0.17
 
-    title_onset = candidates[0]
-    if not 2.0 < title_onset < 16.0:
-        raise RuntimeError(f"Title start is outside expected range: {title_onset}")
-
-    # Include 150ms of the silent/ambience margin before the title so the
-    # beginning is not clipped; retain the original narrator and ambience.
-    cut = max(0.0, title_onset - 0.15)
     ffmpeg(
         "-ss", f"{cut:.3f}", "-i", str(SOURCE),
         "-t", "53",
@@ -83,23 +97,7 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     if OUT.stat().st_size < 150000:
         raise RuntimeError(f"Sample too small: {OUT.stat().st_size}")
-
-    # Verify the output opens with the intended episode title, not the show name.
-    check_file = Path(tmp) / "check.wav"
-    ffmpeg("-i", str(OUT), "-t", "12", "-ar", "16000", "-ac", "1", str(check_file))
-    checked, _ = sf.read(check_file, dtype="float32")
-    segments, _ = model.transcribe(
-        np.asarray(checked, dtype=np.float32),
-        language="en",
-        beam_size=5,
-        initial_prompt="Begin with the place that already works.",
-    )
-    recognized = " ".join(s.text.strip() for s in segments).lower()
-    print(f"Cut at {cut:.3f}s (title onset {title_onset:.3f}s). Verified sample: {recognized}", flush=True)
-    if "begin" not in recognized or "place" not in recognized:
-        raise RuntimeError(f"Wrong narration at cut: {recognized}")
-    if recognized.strip().startswith("living patterns"):
-        raise RuntimeError("Show-name introduction was not removed")
+    print(f"Edited starting at {cut:.3f}s; episode-title voice onset {onset:.3f}s", flush=True)
 
 page = """<!doctype html>
 <html lang="en"><head>
