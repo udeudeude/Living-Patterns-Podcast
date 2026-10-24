@@ -4,12 +4,11 @@ This document is the production lock for the podcast. Change it deliberately, no
 
 ## Current sonic baseline
 
-The current baseline is provisional until the remastered pilot episodes are approved by ear.
+The narrator is the approved Kokoro `bm_george` voice and is not open for voice auditions. The title-first opening is approved by listening. Other sonic parameters remain provisional until the pilot episodes are reviewed.
 
 - Narrator: Kokoro `bm_george`
 - Kokoro speed: `0.88`
-- Opening ambience: 3.0 seconds
-- After “Living Patterns”: 1.25 seconds
+- Opening ambience: a brief margin before the spoken episode title; the 3.0-second original preroll is not a requirement for a title-first opening
 - After episode title: 1.8 seconds
 - Ordinary paragraph pause: 1.35 seconds
 - Major structural pause: 4.5 seconds
@@ -47,11 +46,12 @@ Every ambience asset must have a source URL, creator, license, and license URL w
 
 The default spoken structure is:
 
-1. “Living Patterns.”
-2. episode title
-3. reflection
-4. ending label
-5. ending
+1. episode title
+2. reflection
+3. ending label
+4. ending
+
+**Approved opening decision:** Do not announce “Living Patterns” at the start of each episode. The show name remains visible in podcast apps and artwork; the spoken programme begins directly with the individual episode title. Keep the established narrator, and review awkward inflections in individual sentences rather than changing voice or adding an introductory formula.
 
 The ending label is not permanently fixed to “A small practice.” See `EDITORIAL_PLAN.md`.
 
