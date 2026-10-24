@@ -42,8 +42,13 @@ def ffmpeg(*args):
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
 
 def words_from_audio(model, path):
+    audio, rate = sf.read(path, dtype="float32")
+    if rate != 16000 or audio.ndim != 1:
+        raise RuntimeError(f"Expected 16 kHz mono waveform, got {rate} Hz, shape {audio.shape}")
+    # Passing a waveform avoids a PyAV/faster-whisper binary-compatibility
+    # problem in current GitHub runner dependencies.
     segments, _ = model.transcribe(
-        str(path),
+        audio,
         language="en",
         word_timestamps=True,
         beam_size=5,
